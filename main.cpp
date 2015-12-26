@@ -41,6 +41,10 @@ int main(void)
 
     bitfinexSpot spotPricer((char*) "ask");
 
+    strike = spotPricer.getSpot();
+    strike -= (int) strike % 5;
+    strike = floor(strike);
+
     coinutOrderbook optionPricer ((char*)"VANILLA_OPTION",
                                   (char*) "CALL",
                                   expiryDate,
@@ -52,16 +56,12 @@ int main(void)
     bitfinexLendbook btcRateReceiver ((std::string) "BTC",
                                       (std::string) "mid");
 
-    strike = spotPricer.getSpot();
-    strike -= (int) strike % 5;
-    strike = floor(strike);
-
     printFields();
 
     while(true) {
 
         btcRate = btcRateReceiver.getRate();
-        rate = usdRateReceiver.getRate();;
+        rate = usdRateReceiver.getRate();
         option = optionPricer.getOptionPrice();
         price = spotPricer.getSpot();
 
