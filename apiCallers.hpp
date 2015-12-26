@@ -71,3 +71,16 @@ private:
     TreeReceiver lendbookReceiver;
     boost::property_tree::ptree lendbookTree;
 };
+
+
+class coinutExpiryTime {
+public:
+    coinutExpiryTime (char* _derivativeType);
+    int getExpiryTime ();
+    char* derivativeType;
+private:
+    const std::string coinutUrl;
+    std::string tempExpiryTimesPost;
+    TreeReceiver expiryTimesReceiver;
+    boost::property_tree::ptree expiryTimesTree;
+};

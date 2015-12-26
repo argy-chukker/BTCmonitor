@@ -6,7 +6,6 @@
 #include <sstream>
 #include <cmath>
 #include <ctime>
-#include <chrono>
 #include "apiCallers.hpp"
 
 double opt_price(double sigma, double spot, double strike,
@@ -33,12 +32,12 @@ int main(void)
     }
     initscr();
 
-    double option = 0;
-    double price;
-    double strike = 455.0;
-    int expiryDate = 1455408000;
-    double rate;
-    double btcRate;
+    double option, price, strike;
+    double rate, btcRate;
+    int expiryDate;
+
+    coinutExpiryTime expiryTimeSetter ((char*) "VANILLA_OPTION");
+    expiryDate = expiryTimeSetter.getExpiryTime();
 
     bitfinexSpot spotPricer((char*) "ask");
 
@@ -53,10 +52,13 @@ int main(void)
     bitfinexLendbook btcRateReceiver ((std::string) "BTC",
                                       (std::string) "mid");
 
+    strike = spotPricer.getSpot();
+    strike -= (int) strike % 5;
+    strike = floor(strike);
+
     printFields();
 
     while(true) {
-        auto time_initial = std::chrono::high_resolution_clock::now();
 
         btcRate = btcRateReceiver.getRate();
         rate = usdRateReceiver.getRate();;
@@ -73,8 +75,6 @@ int main(void)
             precio_teo = opt_price(implicit, price, strike,
                                    rate,tau,btcRate);
         }
-
-        auto time_end = std::chrono::high_resolution_clock::now();
 
         printValues(price, option, rate, btcRate,strike, tau, implicit);
 

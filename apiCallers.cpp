@@ -216,3 +216,41 @@ double bitfinexLendbook::getRate() {
 
     return rate;
 }
+
+
+
+////////////////////////
+
+
+
+coinutExpiryTime::
+coinutExpiryTime(char* _derivativeType)
+
+    : derivativeType(_derivativeType),
+      coinutUrl("https://coinut.com/api/expiry_time"),
+      expiryTimesReceiver(coinutUrl, "")
+
+{
+    std::stringstream expiryTimesPost;
+    expiryTimesPost << "{ \"deriv_type\": \"" <<  "VANILLA_OPTION"     << "\", "
+                  << "\"asset\": \""        <<  "BTCUSD"             << "\" }";
+
+    tempExpiryTimesPost = expiryTimesPost.str();
+    expiryTimesReceiver.setPostback(tempExpiryTimesPost);
+}
+
+int coinutExpiryTime::getExpiryTime() {
+
+    int expiryTime = 0;
+    int temp = 0.0;
+
+    expiryTimesTree = expiryTimesReceiver.getTree();
+
+    for (const auto& kv : expiryTimesTree) {
+        temp = kv.second.get<int>("");
+        if(expiryTime < temp)
+            {expiryTime = temp;}
+    }
+
+    return expiryTime;
+}
