@@ -35,8 +35,8 @@ int main(void)
 
     double option = 0;
     double price;
-    double strike = 270.0;
-    int expiryDate = 1448150400;
+    double strike = 455.0;
+    int expiryDate = 1455408000;
     double rate;
     double btcRate;
 
