@@ -8,14 +8,17 @@
 #include <ctime>
 #include "apiCallers.hpp"
 
-double opt_price(double sigma, double spot, double strike,
-                 double rate, double tau, double foreignRate);
+double callTheoreticPrice (double sigma, double spot, double strike,
+                           double rate, double tau, double foreignRate);
 
 double vega(double sigma, double spot, double strike,
             double rate, double tau, double foreignRate);
 
-double volInitGuess(double spot, double strike, double rate,
-                    double tau);
+double volInitGuess (double spot, double strike, double rate, double tau);
+
+double getImplicitVolatility (double spot, double strike,
+                              double rate, double tau, double foreignRate,
+                              double callPrice, double epsilon=0.001);
 
 void printFields();
 void printValues(double& price, double& option, double& rate, double& btcRate,
@@ -32,8 +35,7 @@ int main(void)
     }
     initscr();
 
-    double option, price, strike;
-    double rate, btcRate;
+    double option, price, strike, implicit, rate, btcRate, tau;
     int expiryDate;
 
     coinutExpiryTime expiryTimeSetter ((char*) "VANILLA_OPTION");
@@ -64,17 +66,10 @@ int main(void)
         rate = usdRateReceiver.getRate();
         option = optionPricer.getOptionPrice();
         price = spotPricer.getSpot();
+        tau = ((double) expiryDate - std::time(0))/31536000.0;
 
-        double tau = ((double) expiryDate - std::time(0))/31536000.0;
-        double implicit = volInitGuess(price, strike, rate, tau);
-        double precio_teo = opt_price(implicit, price, strike, rate,
-                                      tau, btcRate);
-        while(std::abs(precio_teo - price*option)>0.001) {
-            implicit = implicit - 1.0*(precio_teo-price*option)/
-                vega(implicit, price, strike,rate,tau, btcRate);
-            precio_teo = opt_price(implicit, price, strike,
-                                   rate,tau,btcRate);
-        }
+        implicit = getImplicitVolatility (price, strike, rate,
+                                          tau, btcRate, option);
 
         printValues(price, option, rate, btcRate,strike, tau, implicit);
 
@@ -84,8 +79,8 @@ int main(void)
     return 0;
 }
 
-double opt_price(double sigma, double spot, double strike,
-                 double rate, double tau, double foreignRate)
+double callTheoreticPrice(double sigma, double spot, double strike,
+                          double rate, double tau, double foreignRate)
 {
     double d1 =
         log(spot/strike) + (rate - foreignRate + sigma*sigma / 2.0) * tau;
@@ -111,6 +106,27 @@ double volInitGuess(double spot, double strike, double rate, double tau) {
     double guess = log(spot/strike) + rate*tau;
     guess = fabs(guess) * 2.0 / tau;
     return(sqrt(guess));
+}
+
+double getImplicitVolatility (double spot, double strike,
+                              double rate, double tau,
+                              double foreignRate, double callPrice,
+                              double epsilon)
+{
+        double implicit = volInitGuess(spot, strike, rate, tau);
+        double theoreticPrice = callTheoreticPrice(implicit, spot,
+                                                   strike, rate,
+                                                   tau, foreignRate);
+
+        while( std::abs(theoreticPrice - spot * callPrice)
+               > epsilon)
+            {
+                implicit = implicit -  1.0*(theoreticPrice - spot * callPrice)/
+                    vega(implicit, spot, strike,rate,tau, foreignRate);
+
+                theoreticPrice = callTheoreticPrice(implicit, spot, strike,
+                                                    rate, tau, foreignRate);
+            }
 }
 
 void printFields() {
