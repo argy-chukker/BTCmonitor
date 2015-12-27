@@ -127,6 +127,8 @@ double getImplicitVolatility (double spot, double strike,
                 theoreticPrice = callTheoreticPrice(implicit, spot, strike,
                                                     rate, tau, foreignRate);
             }
+
+        return (implicit);
 }
 
 void printFields() {
