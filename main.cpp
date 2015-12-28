@@ -6,6 +6,7 @@
 #include <sstream>
 #include <cmath>
 #include <ctime>
+#include <chrono>
 #include "apiCallers.hpp"
 
 double callTheoreticPrice (double sigma, double spot, double strike,
@@ -66,11 +67,14 @@ int main(void)
 
     printFields();
 
-    double initialTime, endTime, delta;
+    auto startTime = std::chrono::high_resolution_clock::now();
+    auto endTime = std::chrono::high_resolution_clock::now();
+
+    double delta;
 
     while(true) {
 
-        initialTime = std::time(0);
+        startTime = std::chrono::high_resolution_clock::now();
 
         btcRate = btcRateReceiver.getRate();
         rate = usdRateReceiver.getRate();
@@ -81,8 +85,10 @@ int main(void)
         implicit = getImplicitVolatility (price, strike, rate,
                                           tau, btcRate, option);
 
-        endTime = std::time(0);
-        delta = endTime - initialTime;
+        endTime = std::chrono::high_resolution_clock::now();
+        delta = std::chrono::duration_cast<std::chrono::nanoseconds>
+            (endTime - startTime).count();
+        delta /= 1000000000;
 
         printValues(price, option, rate, btcRate,strike, tau, implicit, delta);
 
