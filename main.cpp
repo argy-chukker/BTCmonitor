@@ -11,7 +11,7 @@
 double callTheoreticPrice (double sigma, double spot, double strike,
                            double rate, double tau, double foreignRate);
 
-double vega(double sigma, double spot, double strike,
+double vega (double sigma, double spot, double strike,
             double rate, double tau, double foreignRate);
 
 double volInitGuess (double spot, double strike, double rate, double tau);
@@ -20,9 +20,15 @@ double getImplicitVolatility (double spot, double strike,
                               double rate, double tau, double foreignRate,
                               double callPrice, double epsilon=0.001);
 
+double getD1 (double spot, double strike, double rate, double foreignRate,
+           double sigma, double tau);
+double getD2 (double spot, double strike, double rate, double foreignRate,
+           double sigma, double tau);
+
 void printFields();
 void printValues(double& price, double& option, double& rate, double& btcRate,
-                 double& strike, double& tau, double& implicit);
+                 double& strike, double& tau, double& implicit,
+                 double& timeTaken);
 
 int main(void)
 {
@@ -60,7 +66,11 @@ int main(void)
 
     printFields();
 
+    double initialTime, endTime, delta;
+
     while(true) {
+
+        initialTime = std::time(0);
 
         btcRate = btcRateReceiver.getRate();
         rate = usdRateReceiver.getRate();
@@ -71,7 +81,10 @@ int main(void)
         implicit = getImplicitVolatility (price, strike, rate,
                                           tau, btcRate, option);
 
-        printValues(price, option, rate, btcRate,strike, tau, implicit);
+        endTime = std::time(0);
+        delta = endTime - initialTime;
+
+        printValues(price, option, rate, btcRate,strike, tau, implicit, delta);
 
 }
     curl_global_cleanup();
@@ -82,29 +95,32 @@ int main(void)
 double callTheoreticPrice(double sigma, double spot, double strike,
                           double rate, double tau, double foreignRate)
 {
-    double d1 =
-        log(spot/strike) + (rate - foreignRate + sigma*sigma / 2.0) * tau;
-    d1 /= sigma*sqrt(tau);
-    double d2 = d1 - sigma*sqrt(tau);
-    double opt_price = spot * exp(-foreignRate*tau) * erfc(-d1/sqrt(2))/2.0;
-    opt_price -= exp(-rate*tau)*strike*erfc(-d2/sqrt(2))/2.0;
-    return opt_price;
+    double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
+    double d2 = getD2(spot, strike, rate, foreignRate, sigma, tau);
+
+    double theoreticPrice = spot * exp(-foreignRate * tau);
+    theoreticPrice *= erfc(-d1 / sqrt(2)) / 2.0;
+    theoreticPrice -= exp(-rate * tau) * strike * erfc(-d2 / sqrt(2)) / 2.0;
+
+    return theoreticPrice;
 }
 double vega(double sigma, double spot, double strike,
             double rate, double tau, double foreignRate)
 {
-    double d1 =
-        log(spot/strike) + (rate - foreignRate + sigma*sigma / 2.0) * tau;
-    d1 /= sigma*sqrt(tau);
-    double vega =
-        spot*exp(-foreignRate*tau) *
-        (exp(-d1*d1/2.0)/(2*sqrt(2*asin(1))))*sqrt(tau);
+    double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
+
+    double vega = spot*exp(-foreignRate*tau);
+    vega *= (exp(-d1 * d1 / 2.0)/(2 * sqrt(2 * asin(1))));
+    vega *= sqrt(tau);
+
     return vega;
 }
 
-double volInitGuess(double spot, double strike, double rate, double tau) {
+double volInitGuess(double spot, double strike, double rate, double tau)
+{
     double guess = log(spot/strike) + rate*tau;
     guess = fabs(guess) * 2.0 / tau;
+
     return(sqrt(guess));
 }
 
@@ -118,11 +134,12 @@ double getImplicitVolatility (double spot, double strike,
                                                    strike, rate,
                                                    tau, foreignRate);
 
-        while( std::abs(theoreticPrice - spot * callPrice)
-               > epsilon)
+        while( fabs(theoreticPrice - spot * callPrice) > epsilon)
             {
-                implicit = implicit -  1.0*(theoreticPrice - spot * callPrice)/
-                    vega(implicit, spot, strike,rate,tau, foreignRate);
+                double step =  (theoreticPrice - spot * callPrice);
+                step /= vega(implicit, spot, strike,rate,tau, foreignRate);
+
+                implicit -= step;
 
                 theoreticPrice = callTheoreticPrice(implicit, spot, strike,
                                                     rate, tau, foreignRate);
@@ -131,24 +148,46 @@ double getImplicitVolatility (double spot, double strike,
         return (implicit);
 }
 
+double getD1 (double spot, double strike, double rate, double foreignRate,
+           double sigma, double tau)
+{
+    double d1 = log(spot/strike);
+    d1 += (rate - foreignRate + sigma*sigma / 2.0) * tau;
+    d1 /= sigma*sqrt(tau);
+
+    return(d1);
+}
+
+double getD2 (double spot, double strike, double rate, double foreignRate,
+           double sigma, double tau)
+{
+    double d2 = getD1(spot, strike, rate, foreignRate, sigma, tau);
+    d2 -= sigma*sqrt(tau);
+
+    return(d2);
+}
+
+
 void printFields() {
 
-    mvprintw(0, 0, "%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n",
+    mvprintw(0, 0, "%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n",
              "Option Price:",
              "Spot Price:",
              "USD Rate:",
              "BTC Rate:",
              "Strike:",
              "Maturity (y):",
-             "Implied vol.:"
+             "Implied vol.:",
+             "Time Taken:"
              );
 
     refresh();
 }
 
 void printValues (double& price, double& option, double& rate, double& btcRate,
-                  double& strike, double& tau, double& implicit) {
-
+                  double& strike, double& tau, double& implicit,
+                  double& timeTaken)
+{
     mvprintw(0, 16, "%-13.9f", (price*option));
     mvprintw(1, 16, "%-13.8f", price);
     mvprintw(2, 16, "%-13.11f", rate);
@@ -156,6 +195,7 @@ void printValues (double& price, double& option, double& rate, double& btcRate,
     mvprintw(4, 16, "%-13.8f", strike);
     mvprintw(5, 16, "%-13.11f", tau);
     mvprintw(6, 16, "%-13.10f", implicit);
+    mvprintw(7, 16, "%-13.10f", timeTaken);
 
 refresh();
 }
