@@ -13,7 +13,16 @@ double callTheoreticPrice (double sigma, double spot, double strike,
                            double rate, double tau, double foreignRate);
 
 double vega (double sigma, double spot, double strike,
-            double rate, double tau, double foreignRate);
+             double rate, double tau, double foreignRate);
+
+double callDelta (double spot, double strike, double rate, double foreignRate,
+              double sigma, double tau);
+
+double callTheta (double spot, double strike, double rate, double foreignRate,
+                  double sigma, double tau);
+
+double callRho (double spot, double strike, double rate, double foreignRate,
+                double sigma, double tau);
 
 double volInitGuess (double spot, double strike, double rate, double tau);
 
@@ -22,14 +31,15 @@ double getImplicitVolatility (double spot, double strike,
                               double callPrice, double epsilon=0.001);
 
 double getD1 (double spot, double strike, double rate, double foreignRate,
-           double sigma, double tau);
+              double sigma, double tau);
 double getD2 (double spot, double strike, double rate, double foreignRate,
            double sigma, double tau);
 
 void printFields();
 void printValues(double& price, double& option, double& rate, double& btcRate,
                  double& strike, double& tau, double& implicit,
-                 double& timeTaken);
+                 double& timeTaken,
+                 double& delta, double& vega, double& theta, double& rho);
 
 int main(void)
 {
@@ -43,6 +53,7 @@ int main(void)
     initscr();
 
     double option, price, strike, implicit, rate, btcRate, tau;
+    double delta, callVega, theta, rho;
     int expiryDate;
 
     coinutExpiryTime expiryTimeSetter ((char*) "VANILLA_OPTION");
@@ -65,11 +76,11 @@ int main(void)
     bitfinexLendbook btcRateReceiver ((std::string) "BTC",
                                       (std::string) "mid");
 
-    printFields();
+        printFields();
 
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
-    double delta;
+    double duration;
 
     while(true) {
 
@@ -84,12 +95,21 @@ int main(void)
         implicit = getImplicitVolatility (price, strike, rate,
                                           tau, btcRate, option);
 
-        endTime = std::chrono::high_resolution_clock::now();
-        delta = std::chrono::duration_cast<std::chrono::nanoseconds>
-            (endTime - startTime).count();
-        delta /= 1000000000;
+        callVega =  vega (implicit, price, strike, rate,  tau, btcRate);
 
-        printValues(price, option, rate, btcRate,strike, tau, implicit, delta);
+        delta = callDelta (price, strike, rate, btcRate, implicit, tau);
+
+        theta = callTheta (price, strike, rate, btcRate, implicit, tau);
+
+        rho = callRho (price, strike, rate, btcRate, implicit, tau);
+
+        endTime = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::nanoseconds>
+            (endTime - startTime).count();
+        duration /= 1000000000;
+
+        printValues(price, option, rate, btcRate,strike, tau, implicit,
+                    duration, delta, callVega, theta, rho);
 
 }
     curl_global_cleanup();
@@ -105,7 +125,7 @@ double callTheoreticPrice(double sigma, double spot, double strike,
 
     double theoreticPrice = spot * exp(-foreignRate * tau);
     theoreticPrice *= erfc(-d1 / sqrt(2)) / 2.0;
-    theoreticPrice -= exp(-rate * tau) * strike * erfc(-d2 / sqrt(2)) / 2.0;
+    theoreticPrice -= exp(-rate * tau) * strike * erfc(-d2 / sqrt(2.0)) / 2.0;
 
     return theoreticPrice;
 }
@@ -114,7 +134,7 @@ double vega(double sigma, double spot, double strike,
 {
     double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
 
-    double vega = spot*exp(-foreignRate*tau);
+    double vega = spot * exp(-foreignRate * tau);
     vega *= (exp(-d1 * d1 / 2.0)/(2 * sqrt(2 * asin(1))));
     vega *= sqrt(tau);
 
@@ -133,7 +153,7 @@ double getImplicitVolatility (double spot, double strike,
                               double rate, double tau,
                               double foreignRate, double callPrice,
                               double epsilon)
-{
+ {
         double implicit = volInitGuess(spot, strike, rate, tau);
         double theoreticPrice = callTheoreticPrice(implicit, spot,
                                                    strike, rate,
@@ -152,6 +172,44 @@ double getImplicitVolatility (double spot, double strike,
 
         return (implicit);
 }
+
+double callDelta (double spot, double strike, double rate, double foreignRate,
+                  double sigma, double tau)
+{
+    double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
+
+    double delta = exp(-foreignRate * tau);
+    delta *= erfc(-d1 / sqrt(2.0)) / 2.0;
+
+    return(delta);
+}
+
+double callRho (double spot, double strike, double rate, double foreignRate,
+                  double sigma, double tau)
+{
+    double d2 = getD2(spot, strike, rate, foreignRate, sigma, tau);
+
+    double rho = strike * tau * exp(-foreignRate * tau);
+    rho *= erfc(-d2 / sqrt(2.0)) / 2.0;
+
+    return(rho);
+}
+
+double callTheta (double spot, double strike, double rate, double foreignRate,
+                double sigma, double tau)
+{
+    double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
+
+    double theta = callDelta(spot, strike, rate, foreignRate, sigma, tau);
+    theta *= spot * foreignRate;
+    theta +=
+        foreignRate * callRho(spot, strike, rate, foreignRate, sigma, tau) /tau;
+    theta -= exp(-foreignRate * tau) * spot * sigma *
+        (exp(-d1 * d1 / 2.0)/(2 * sqrt(2 * asin(1)))) / (2.0 * sqrt(tau));
+
+    return(theta);
+}
+
 
 double getD1 (double spot, double strike, double rate, double foreignRate,
            double sigma, double tau)
@@ -175,7 +233,8 @@ double getD2 (double spot, double strike, double rate, double foreignRate,
 
 void printFields() {
 
-    mvprintw(0, 0, "%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n",
+    mvprintw(0, 0, "%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n"
+             "%-15s\n%-15s\n%-15s\n%-15s\n%-15s\n",
              "Option Price:",
              "Spot Price:",
              "USD Rate:",
@@ -183,6 +242,7 @@ void printFields() {
              "Strike:",
              "Maturity (y):",
              "Implied vol.:",
+             "Delta:", "Vega:", "Theta:", "Rho:",
              "Time Taken:"
              );
 
@@ -191,7 +251,8 @@ void printFields() {
 
 void printValues (double& price, double& option, double& rate, double& btcRate,
                   double& strike, double& tau, double& implicit,
-                  double& timeTaken)
+                  double& timeTaken,
+                  double& delta, double& vega, double& theta, double& rho)
 {
     mvprintw(0, 16, "%-13.9f", (price*option));
     mvprintw(1, 16, "%-13.8f", price);
@@ -200,7 +261,11 @@ void printValues (double& price, double& option, double& rate, double& btcRate,
     mvprintw(4, 16, "%-13.8f", strike);
     mvprintw(5, 16, "%-13.11f", tau);
     mvprintw(6, 16, "%-13.10f", implicit);
-    mvprintw(7, 16, "%-13.10f", timeTaken);
+    mvprintw(7, 16, "%-13.10f", delta);
+    mvprintw(8, 16, "%-13.10f", vega);
+    mvprintw(9, 16, "%-13.10f",theta);
+    mvprintw(10, 16, "%-13.10f", rho);
+    mvprintw(11, 16, "%-13.10f", timeTaken);
 
 refresh();
 }
