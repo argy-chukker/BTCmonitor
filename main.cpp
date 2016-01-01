@@ -16,7 +16,7 @@ double vega (double sigma, double spot, double strike,
              double rate, double tau, double foreignRate);
 
 double callDelta (double spot, double strike, double rate, double foreignRate,
-              double sigma, double tau);
+                  double sigma, double tau);
 
 double callTheta (double spot, double strike, double rate, double foreignRate,
                   double sigma, double tau);
@@ -33,7 +33,7 @@ double getImplicitVolatility (double spot, double strike,
 double getD1 (double spot, double strike, double rate, double foreignRate,
               double sigma, double tau);
 double getD2 (double spot, double strike, double rate, double foreignRate,
-           double sigma, double tau);
+              double sigma, double tau);
 
 void printFields();
 void printValues(double& price, double& option, double& rate, double& btcRate,
@@ -76,7 +76,7 @@ int main(void)
     bitfinexLendbook btcRateReceiver ((std::string) "BTC",
                                       (std::string) "mid");
 
-        printFields();
+    printFields();
 
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
@@ -86,12 +86,32 @@ int main(void)
 
         startTime = std::chrono::high_resolution_clock::now();
 
-        btcRate = btcRateReceiver.getRate();
-        rate = usdRateReceiver.getRate();
-        option = optionPricer.getOptionPrice();
-        price = spotPricer.getSpot();
-        tau = ((double) expiryDate - std::time(0))/31536000.0;
-
+        #pragma omp parallel
+        {
+            #pragma omp single
+            {
+                #pragma omp task
+                {
+                    btcRate = btcRateReceiver.getRate();
+                }
+                #pragma omp task
+                {
+                    rate = usdRateReceiver.getRate();
+                }
+                #pragma omp task
+                {
+                    option = optionPricer.getOptionPrice();
+                }
+                #pragma omp task
+                {
+                    price = spotPricer.getSpot();
+                }
+                #pragma omp task
+                {
+                    tau = ((double) expiryDate - std::time(0))/31536000.0;
+                }
+            }
+        }
         implicit = getImplicitVolatility (price, strike, rate,
                                           tau, btcRate, option);
 
@@ -111,7 +131,7 @@ int main(void)
         printValues(price, option, rate, btcRate,strike, tau, implicit,
                     duration, delta, callVega, theta, rho);
 
-}
+    }
     curl_global_cleanup();
     endwin();
     return 0;
@@ -153,24 +173,24 @@ double getImplicitVolatility (double spot, double strike,
                               double rate, double tau,
                               double foreignRate, double callPrice,
                               double epsilon)
- {
-        double implicit = volInitGuess(spot, strike, rate, tau);
-        double theoreticPrice = callTheoreticPrice(implicit, spot,
-                                                   strike, rate,
-                                                   tau, foreignRate);
+{
+    double implicit = volInitGuess(spot, strike, rate, tau);
+    double theoreticPrice = callTheoreticPrice(implicit, spot,
+                                               strike, rate,
+                                               tau, foreignRate);
 
-        while( fabs(theoreticPrice - spot * callPrice) > epsilon)
-            {
-                double step =  (theoreticPrice - spot * callPrice);
-                step /= vega(implicit, spot, strike,rate,tau, foreignRate);
+    while( fabs(theoreticPrice - spot * callPrice) > epsilon)
+        {
+            double step =  (theoreticPrice - spot * callPrice);
+            step /= vega(implicit, spot, strike,rate,tau, foreignRate);
 
-                implicit -= step;
+            implicit -= step;
 
-                theoreticPrice = callTheoreticPrice(implicit, spot, strike,
-                                                    rate, tau, foreignRate);
-            }
+            theoreticPrice = callTheoreticPrice(implicit, spot, strike,
+                                                rate, tau, foreignRate);
+        }
 
-        return (implicit);
+    return (implicit);
 }
 
 double callDelta (double spot, double strike, double rate, double foreignRate,
@@ -185,7 +205,7 @@ double callDelta (double spot, double strike, double rate, double foreignRate,
 }
 
 double callRho (double spot, double strike, double rate, double foreignRate,
-                  double sigma, double tau)
+                double sigma, double tau)
 {
     double d2 = getD2(spot, strike, rate, foreignRate, sigma, tau);
 
@@ -196,7 +216,7 @@ double callRho (double spot, double strike, double rate, double foreignRate,
 }
 
 double callTheta (double spot, double strike, double rate, double foreignRate,
-                double sigma, double tau)
+                  double sigma, double tau)
 {
     double d1 = getD1(spot, strike, rate, foreignRate, sigma, tau);
 
@@ -212,7 +232,7 @@ double callTheta (double spot, double strike, double rate, double foreignRate,
 
 
 double getD1 (double spot, double strike, double rate, double foreignRate,
-           double sigma, double tau)
+              double sigma, double tau)
 {
     double d1 = log(spot/strike);
     d1 += (rate - foreignRate + sigma*sigma / 2.0) * tau;
@@ -222,7 +242,7 @@ double getD1 (double spot, double strike, double rate, double foreignRate,
 }
 
 double getD2 (double spot, double strike, double rate, double foreignRate,
-           double sigma, double tau)
+              double sigma, double tau)
 {
     double d2 = getD1(spot, strike, rate, foreignRate, sigma, tau);
     d2 -= sigma*sqrt(tau);
@@ -267,5 +287,5 @@ void printValues (double& price, double& option, double& rate, double& btcRate,
     mvprintw(10, 16, "%-13.10f", rho);
     mvprintw(11, 16, "%-13.10f", timeTaken);
 
-refresh();
+    refresh();
 }
