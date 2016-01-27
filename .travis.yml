@@ -1,8 +1,20 @@
 language: cpp
+compiler:
+  - gcc
+  - clang
 install:
+  - if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
   - sudo apt-get install libcurl4-openssl-dev
   - sudo apt-get install ncurses-dev
   - sudo apt-get update -qq
   - sudo apt-get install libboost-all-dev
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+    - clang
 script:
   - make
