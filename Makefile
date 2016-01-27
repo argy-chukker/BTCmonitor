@@ -1,4 +1,3 @@
-BOOST_PATH = /home/cristian/boost_1_60_0
 HEADERS_PATH = /home/cristian/repos/BTCmonitor/
 
 CFLAGS = -std=c++14 -O3
@@ -17,4 +16,4 @@ OUT_PATH = ./bin
 
 all:
 	mkdir -p ${OUT_PATH}
-	${CC} ${CFLAGS} -I ${BOOST_PATH} -I ${HEADERS_PATH} ${SOURCES} $(LIBS:%=-l %) -o ${OUT_PATH}/BTCMonitor.so ${OMPFLAG}
+	${CC} ${CFLAGS} -I ${HEADERS_PATH} ${SOURCES} $(LIBS:%=-l %) -o ${OUT_PATH}/BTCMonitor.so ${OMPFLAG}
