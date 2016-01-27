@@ -1,6 +1,6 @@
 HEADERS_PATH = ./
 
-CFLAGS = -std=c++11 -O3
+CFLAGS = -std=c++0x -O3
 
 SRC_FILES = main.cpp apiCallers.cpp financeMetrics.cpp
 SRC_PATH = ./src
