@@ -1,5 +1,7 @@
 # Bitcoin Screener
 
+[![Build Status](https://travis-ci.org/korowjev/BTCmonitor.svg?branch=master)](https://travis-ci.org/korowjev/BTCmonitor)
+
 A small BTC screener that shows current spot (Bitfinex) exchange rate, USD and BTC rates, and option prices (in USD). From these, the implicit volatility in the contract is calculated.
 
 A minimal build is tested as of this commit both for g++ and clang++. To replicate it, just clone and run:
